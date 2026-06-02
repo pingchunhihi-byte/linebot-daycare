@@ -14,11 +14,15 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'daycare2024';
 const client = new messagingApi.MessagingApiClient(config);
 const app = express();
 
+// 靜態檔案放最前面
+app.use(express.static(path.join(__dirname, 'public')));
+
+// webhook 需要原始 body
 app.use('/webhook', express.raw({ type: 'application/json' }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(express.static(path.join(__dirname, 'public')));
 
+// ========== LINE Webhook ==========
 app.post('/webhook', (req, res) => {
   const signature = req.headers['x-line-signature'];
   const body = req.body;
@@ -44,6 +48,7 @@ app.post('/webhook', (req, res) => {
   res.status(200).json({ status: 'ok' });
 });
 
+// ========== Admin API ==========
 app.post('/api/login', (req, res) => {
   const { password } = req.body;
   if (password === ADMIN_PASSWORD) {
@@ -108,6 +113,7 @@ app.get('/api/status', (req, res) => {
 
 app.get('/', (req, res) => res.send('交班小幫手運行中 ✅'));
 
+// ========== 排程 ==========
 cron.schedule('0 7 * * *', async () => {
   console.log('⏰ 07:00 自動推播');
   await pushScheduled(client, db);
