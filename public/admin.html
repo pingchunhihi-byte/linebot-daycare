@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>交班小幫手｜推播控制台</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f0f4f8;
+    --surface: #ffffff;
+    --border: #dde3ea;
+    --primary: #2563eb;
+    --primary-hover: #1d4ed8;
+    --success: #16a34a;
+    --success-bg: #f0fdf4;
+    --warning: #d97706;
+    --warning-bg: #fffbeb;
+    --danger: #dc2626;
+    --danger-bg: #fef2f2;
+    --text: #1e293b;
+    --text-muted: #64748b;
+    --accent: #0ea5e9;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Noto Sans TC', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 24px 16px;
+  }
+
+  .header {
+    text-align: center;
+    margin-bottom: 28px;
+  }
+  .header .badge {
+    display: inline-block;
+    background: var(--primary);
+    color: white;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    padding: 4px 12px;
+    border-radius: 20px;
+    margin-bottom: 10px;
+  }
+  .header h1 {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+  .header p {
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+    margin-bottom: 16px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  }
+
+  .card-title {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* 登入區 */
+  #login-section { max-width: 360px; margin: 0 auto; }
+  .login-icon { font-size: 40px; text-align: center; margin-bottom: 16px; }
+
+  /* 狀態列 */
+  .status-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    border-radius: 10px;
+    font-size: 14px;
+    margin-bottom: 12px;
+  }
+  .status-row.connected { background: var(--success-bg); color: var(--success); }
+  .status-row.disconnected { background: var(--danger-bg); color: var(--danger); }
+  .status-row.pending { background: var(--warning-bg); color: var(--warning); }
+  .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .connected .status-dot { background: var(--success); }
+  .disconnected .status-dot { background: var(--danger); }
+  .pending .status-dot { background: var(--warning); animation: pulse 1.5s infinite; }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  /* 表單 */
+  label {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+  }
+
+  input[type="password"],
+  textarea {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    font-family: 'Noto Sans TC', sans-serif;
+    font-size: 15px;
+    color: var(--text);
+    background: #fafbfc;
+    outline: none;
+    transition: border-color 0.2s;
+    margin-bottom: 16px;
+  }
+  input:focus, textarea:focus {
+    border-color: var(--primary);
+    background: white;
+  }
+
+  textarea {
+    min-height: 180px;
+    resize: vertical;
+    line-height: 1.7;
+  }
+
+  .char-count {
+    text-align: right;
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: -12px;
+    margin-bottom: 16px;
+  }
+
+  /* 按鈕 */
+  .btn {
+    display: block;
+    width: 100%;
+    padding: 14px;
+    border: none;
+    border-radius: 12px;
+    font-family: 'Noto Sans TC', sans-serif;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-bottom: 10px;
+  }
+  .btn:active { transform: scale(0.98); }
+
+  .btn-primary {
+    background: var(--primary);
+    color: white;
+  }
+  .btn-primary:hover { background: var(--primary-hover); }
+  .btn-primary:disabled { background: #94a3b8; cursor: not-allowed; transform: none; }
+
+  .btn-success {
+    background: var(--success);
+    color: white;
+  }
+  .btn-success:hover { background: #15803d; }
+  .btn-success:disabled { background: #94a3b8; cursor: not-allowed; transform: none; }
+
+  .btn-outline {
+    background: white;
+    color: var(--text);
+    border: 1.5px solid var(--border);
+  }
+  .btn-outline:hover { background: var(--bg); }
+
+  /* 時間選擇 */
+  .time-options {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .time-chip {
+    padding: 10px;
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    background: white;
+    font-size: 14px;
+    font-family: 'Noto Sans TC', sans-serif;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.2s;
+    color: var(--text);
+  }
+  .time-chip.active {
+    border-color: var(--primary);
+    background: #eff6ff;
+    color: var(--primary);
+    font-weight: 700;
+  }
+
+  /* 預覽區 */
+  .preview-box {
+    background: #f8fafc;
+    border: 1.5px dashed var(--border);
+    border-radius: 10px;
+    padding: 14px;
+    font-size: 14px;
+    line-height: 1.8;
+    white-space: pre-wrap;
+    font-family: 'DM Mono', monospace;
+    color: var(--text);
+    min-height: 80px;
+  }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: var(--text);
+    color: white;
+    padding: 12px 20px;
+    border-radius: 12px;
+    font-size: 14px;
+    font-weight: 500;
+    transition: transform 0.3s ease;
+    z-index: 999;
+    white-space: nowrap;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  .toast.success { background: var(--success); }
+  .toast.error { background: var(--danger); }
+
+  /* 分隔線 */
+  .divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 16px 0;
+  }
+
+  .schedule-badge {
+    display: inline-block;
+    background: #eff6ff;
+    color: var(--primary);
+    font-size: 12px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 20px;
+  }
+
+  /* 隱藏/顯示 */
+  .hidden { display: none !important; }
+
+  .pending-content {
+    background: var(--warning-bg);
+    border: 1.5px solid #fcd34d;
+    border-radius: 10px;
+    padding: 14px;
+    font-size: 14px;
+    line-height: 1.8;
+    white-space: pre-wrap;
+    color: var(--text);
+    margin-bottom: 12px;
+  }
+  .pending-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--warning);
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+  }
+</style>
+</head>
+<body>
+
+<!-- 登入頁 -->
+<div id="login-section">
+  <div class="login-icon">🏥</div>
+  <div class="card">
+    <div class="card-title">🔐 管理員登入</div>
+    <label>管理密碼</label>
+    <input type="password" id="password-input" placeholder="輸入密碼" autocomplete="current-password">
+    <button class="btn btn-primary" onclick="login()">登入</button>
+  </div>
+</div>
+
+<!-- 主控台 -->
+<div id="main-section" class="hidden">
+  <div class="header">
+    <div class="badge">ADMIN</div>
+    <h1>交班推播控制台</h1>
+    <p>愛智日照機構</p>
+  </div>
+
+  <!-- 狀態 -->
+  <div class="card">
+    <div class="card-title">📡 系統狀態</div>
+    <div id="status-group" class="status-row disconnected">
+      <div class="status-dot"></div>
+      <span id="status-group-text">LINE 群組未連線</span>
+    </div>
+    <div id="status-pending" class="status-row" style="display:none">
+      <div class="status-dot"></div>
+      <span id="status-pending-text"></span>
+    </div>
+  </div>
+
+  <!-- 待推播內容預覽 -->
+  <div class="card" id="pending-card" style="display:none">
+    <div class="card-title">⏳ 待推播內容</div>
+    <div class="pending-label">已儲存，等待推播</div>
+    <div class="pending-content" id="pending-preview"></div>
+    <button class="btn btn-success" onclick="pushNow()">🚀 立即推播到 LINE 群組</button>
+    <button class="btn btn-outline" onclick="clearAndEdit()">✏️ 重新編輯</button>
+  </div>
+
+  <!-- 輸入區 -->
+  <div class="card" id="input-card">
+    <div class="card-title">📝 今日交班內容</div>
+
+    <label>交班內容（主管整理後貼入）</label>
+    <textarea id="content-input"
+      placeholder="例如：
+• 王杯杯：今日需接送，請備輪椅
+• 李奶奶：家屬下午1點來接，請提醒
+• 陳爺爺：今日情緒較不穩，請多留意"
+      oninput="updatePreview(); updateCharCount()"></textarea>
+    <div class="char-count"><span id="char-count">0</span> 字</div>
+
+    <label>推播時間</label>
+    <div class="time-options">
+      <button class="time-chip active" onclick="selectTime(this, 'auto')">⏰ 明日 07:00 自動</button>
+      <button class="time-chip" onclick="selectTime(this, 'now')">🚀 立即推播</button>
+    </div>
+
+    <hr class="divider">
+    <label>推播預覽</label>
+    <div class="preview-box" id="preview-box">請在上方輸入交班內容...</div>
+
+    <hr class="divider">
+    <button class="btn btn-primary" id="save-btn" onclick="saveContent()" disabled>💾 儲存交班內容</button>
+  </div>
+
+  <button class="btn btn-outline" onclick="logout()" style="margin-top:8px">登出</button>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+let pw = '';
+let selectedTime = 'auto';
+let refreshTimer = null;
+
+// ========== 登入 ==========
+async function login() {
+  const input = document.getElementById('password-input');
+  pw = input.value.trim();
+  if (!pw) return showToast('請輸入密碼', 'error');
+
+  try {
+    const res = await fetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: pw })
+    });
+    const data = await res.json();
+    if (data.success) {
+      document.getElementById('login-section').classList.add('hidden');
+      document.getElementById('main-section').classList.remove('hidden');
+      loadStatus();
+      refreshTimer = setInterval(loadStatus, 30000);
+    } else {
+      showToast('密碼錯誤', 'error');
+    }
+  } catch (e) {
+    showToast('連線失敗', 'error');
+  }
+}
+
+document.getElementById('password-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') login();
+});
+
+// ========== 載入狀態 ==========
+async function loadStatus() {
+  try {
+    const res = await fetch(`/api/status?password=${encodeURIComponent(pw)}`);
+    const data = await res.json();
+    if (!data.success) return;
+
+    // 群組狀態
+    const groupEl = document.getElementById('status-group');
+    const groupText = document.getElementById('status-group-text');
+    if (data.groupConnected) {
+      groupEl.className = 'status-row connected';
+      groupText.textContent = 'LINE 群組已連線 ✓';
+    } else {
+      groupEl.className = 'status-row disconnected';
+      groupText.textContent = 'LINE 群組未連線（請先把 Bot 加入群組）';
+    }
+
+    // 待推播
+    const pendingCard = document.getElementById('pending-card');
+    const inputCard = document.getElementById('input-card');
+    const pendingStatus = document.getElementById('status-pending');
+
+    if (data.pending) {
+      pendingCard.style.display = 'block';
+      inputCard.style.display = 'none';
+      document.getElementById('pending-preview').textContent = data.pending.content;
+
+      pendingStatus.style.display = 'flex';
+      pendingStatus.className = 'status-row pending';
+      const t = data.pending.scheduledTime || '明日 07:00';
+      document.getElementById('status-pending-text').textContent = `已排程推播｜${t}`;
+    } else {
+      pendingCard.style.display = 'none';
+      inputCard.style.display = 'block';
+      pendingStatus.style.display = 'none';
+    }
+  } catch (e) {
+    console.error('載入狀態失敗', e);
+  }
+}
+
+// ========== 選擇推播時間 ==========
+function selectTime(el, val) {
+  document.querySelectorAll('.time-chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  selectedTime = val;
+  updatePreview();
+}
+
+// ========== 更新預覽 ==========
+function updatePreview() {
+  const content = document.getElementById('content-input').value.trim();
+  const saveBtn = document.getElementById('save-btn');
+  saveBtn.disabled = !content;
+
+  if (!content) {
+    document.getElementById('preview-box').textContent = '請在上方輸入交班內容...';
+    return;
+  }
+
+  const today = new Date();
+  const m = today.getMonth() + 1;
+  const d = today.getDate();
+  const tomorrow = new Date(today);
+  tomorrow.setDate(d + 1);
+  const tm = tomorrow.getMonth() + 1;
+  const td = tomorrow.getDate();
+
+  const dateStr = selectedTime === 'now' ? `${m}/${d}` : `${tm}/${td}`;
+  const greeting = selectedTime === 'now' ? '📢 交班通知' : `🌅 早安！${dateStr} 交班內容`;
+
+  const preview =
+    `${greeting}\n` +
+    `─────────────────\n` +
+    `${content}\n` +
+    `─────────────────\n` +
+    `請相關人員注意，今日工作順利 🙏`;
+
+  document.getElementById('preview-box').textContent = preview;
+}
+
+function updateCharCount() {
+  const len = document.getElementById('content-input').value.length;
+  document.getElementById('char-count').textContent = len;
+}
+
+// ========== 儲存內容 ==========
+async function saveContent() {
+  const content = document.getElementById('content-input').value.trim();
+  if (!content) return showToast('請輸入交班內容', 'error');
+
+  const saveBtn = document.getElementById('save-btn');
+  saveBtn.disabled = true;
+  saveBtn.textContent = '儲存中...';
+
+  try {
+    const scheduledTime = selectedTime === 'now' ? '立即推播' : '明日 07:00';
+    const res = await fetch('/api/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: pw, content, scheduledTime })
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      if (selectedTime === 'now') {
+        await pushNowInternal();
+      } else {
+        showToast('✅ 已儲存！明日 07:00 自動推播', 'success');
+        loadStatus();
+      }
+    } else {
+      showToast(data.message || '儲存失敗', 'error');
+    }
+  } catch (e) {
+    showToast('連線失敗', 'error');
+  } finally {
+    saveBtn.disabled = false;
+    saveBtn.textContent = '💾 儲存交班內容';
+  }
+}
+
+// ========== 立即推播 ==========
+async function pushNow() {
+  if (!confirm('確定要立即推播到 LINE 群組嗎？')) return;
+  await pushNowInternal();
+}
+
+async function pushNowInternal() {
+  try {
+    const res = await fetch('/api/push-now', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: pw })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast('🎉 推播成功！', 'success');
+      document.getElementById('content-input').value = '';
+      updatePreview();
+      loadStatus();
+    } else {
+      showToast(data.message || '推播失敗', 'error');
+    }
+  } catch (e) {
+    showToast('連線失敗', 'error');
+  }
+}
+
+// ========== 清除並重新編輯 ==========
+async function clearAndEdit() {
+  if (!confirm('確定要清除目前內容並重新編輯嗎？')) return;
+  // 透過儲存空的觸發刪除（實際上 save 會先刪舊的）
+  await fetch('/api/save', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password: pw, content: '（已清除）', scheduledTime: null })
+  });
+  // 立刻再刪掉（用個空訊息覆蓋後不推播即可）
+  // 其實只要 loadStatus 後 pending 消失，input 就會出現
+  // 所以直接清除後重整狀態
+  document.getElementById('content-input').value = '';
+  updatePreview();
+  showToast('已清除，請重新輸入', 'success');
+  loadStatus();
+}
+
+// ========== 登出 ==========
+function logout() {
+  pw = '';
+  clearInterval(refreshTimer);
+  document.getElementById('main-section').classList.add('hidden');
+  document.getElementById('login-section').classList.remove('hidden');
+  document.getElementById('password-input').value = '';
+}
+
+// ========== Toast ==========
+function showToast(msg, type = '') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `toast ${type} show`;
+  setTimeout(() => { t.className = `toast ${type}`; }, 3000);
+}
+</script>
+</body>
+</html>
