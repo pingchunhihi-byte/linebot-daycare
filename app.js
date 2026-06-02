@@ -1,4 +1,4 @@
-const { middleware, messagingApi } = require('@line/bot-sdk');
+const { validateSignature, messagingApi } = require('@line/bot-sdk');
 const express = require('express');
 const cron = require('node-cron');
 const path = require('path');
@@ -11,16 +11,28 @@ const config = {
 };
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'daycare2024';
-
 const client = new messagingApi.MessagingApiClient(config);
 const app = express();
 
+app.use('/webhook', express.raw({ type: 'application/json' }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-app.post('/webhook', middleware(config), (req, res) => {
-  req.body.events.forEach(event => {
+app.post('/webhook', (req, res) => {
+  const signature = req.headers['x-line-signature'];
+  const body = req.body;
+  if (!validateSignature(body, config.channelSecret, signature)) {
+    return res.status(400).json({ message: 'Invalid signature' });
+  }
+  let events = [];
+  try {
+    const parsed = JSON.parse(body.toString());
+    events = parsed.events || [];
+  } catch (e) {
+    return res.status(200).json({ status: 'ok' });
+  }
+  events.forEach(event => {
     if (event.source && event.source.type === 'group') {
       const savedGroupId = db.getGroupId();
       if (!savedGroupId) {
@@ -29,7 +41,7 @@ app.post('/webhook', middleware(config), (req, res) => {
       }
     }
   });
-  res.json({ status: 'ok' });
+  res.status(200).json({ status: 'ok' });
 });
 
 app.post('/api/login', (req, res) => {
@@ -106,18 +118,12 @@ cron.schedule('30 18 * * *', async () => {
   const groupId = db.getGroupId();
   const msg = db.getPendingMessage();
   if (!groupId) return;
-
   const today = new Date().toLocaleDateString('zh-TW', {
     timeZone: 'Asia/Taipei', month: 'numeric', day: 'numeric'
   });
-
-  let text = '';
-  if (msg) {
-    text = `📋 ${today} 交班預覽\n─────────────────\n${msg.content}\n─────────────────\n⏰ 明日 07:00 將自動推播給早班\n✏️ 如需修改請至推播控制頁面更新`;
-  } else {
-    text = `⚠️ 提醒：今日尚未設定交班內容\n請主管至推播控制頁面輸入交班內容\n⏰ 明日 07:00 將自動推播`;
-  }
-
+  let text = msg
+    ? `📋 ${today} 交班預覽\n─────────────────\n${msg.content}\n─────────────────\n⏰ 明日 07:00 將自動推播給早班\n✏️ 如需修改請至推播控制頁面更新`
+    : `⚠️ 提醒：今日尚未設定交班內容\n請主管至推播控制頁面輸入交班內容\n⏰ 明日 07:00 將自動推播`;
   try {
     await client.pushMessage({ to: groupId, messages: [{ type: 'text', text }] });
     console.log('✅ 18:30 預覽推播完成');
