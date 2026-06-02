@@ -1,4 +1,3 @@
-const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
 
@@ -9,75 +8,76 @@ if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
 }
 
-const db = new Database(DB_PATH);
+const initSqlJs = require('sql.js');
+let db = null;
 
-function init() {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS messages (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      content TEXT NOT NULL,
-      scheduled_time TEXT,
-      is_sent INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
+function saveDb() {
+  if (!db) return;
+  const data = db.export();
+  fs.writeFileSync(DB_PATH, Buffer.from(data));
+}
 
-    CREATE TABLE IF NOT EXISTS settings (
-      key TEXT PRIMARY KEY,
-      value TEXT
-    );
-  `);
-  db.prepare(`INSERT OR IGNORE INTO settings (key, value) VALUES ('group_id', '')`).run();
+async function init() {
+  const SQL = await initSqlJs();
+  if (fs.existsSync(DB_PATH)) {
+    const fileBuffer = fs.readFileSync(DB_PATH);
+    db = new SQL.Database(fileBuffer);
+  } else {
+    db = new SQL.Database();
+  }
+  db.run(`CREATE TABLE IF NOT EXISTS messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    content TEXT NOT NULL,
+    scheduled_time TEXT,
+    is_sent INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
+  db.run(`CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT
+  )`);
+  db.run(`INSERT OR IGNORE INTO settings (key, value) VALUES ('group_id', '')`);
+  saveDb();
   console.log('✅ 資料庫初始化完成');
 }
 
-// 儲存交班訊息（覆蓋舊的未推播訊息）
 function saveMessage(content, scheduledTime) {
-  // 先刪除未推播的舊訊息
-  db.prepare(`DELETE FROM messages WHERE is_sent = 0`).run();
-  // 新增新訊息
-  db.prepare(`
-    INSERT INTO messages (content, scheduled_time)
-    VALUES (?, ?)
-  `).run(content, scheduledTime);
+  db.run(`DELETE FROM messages WHERE is_sent = 0`);
+  db.run(`INSERT INTO messages (content, scheduled_time) VALUES (?, ?)`, [content, scheduledTime]);
+  saveDb();
 }
 
-// 取得待推播訊息
 function getPendingMessage() {
-  return db.prepare(`
-    SELECT * FROM messages WHERE is_sent = 0 ORDER BY created_at DESC LIMIT 1
-  `).get();
+  const stmt = db.prepare(`SELECT * FROM messages WHERE is_sent = 0 ORDER BY created_at DESC LIMIT 1`);
+  const row = stmt.getAsObject();
+  stmt.free();
+  return row && row.id ? row : null;
 }
 
-// 標記已推播
 function markMessageSent(id) {
-  db.prepare(`UPDATE messages SET is_sent = 1 WHERE id = ?`).run(id);
+  db.run(`UPDATE messages SET is_sent = 1 WHERE id = ?`, [id]);
+  saveDb();
 }
 
-// 清除已推播訊息（保留最近7筆紀錄）
 function cleanOldMessages() {
-  db.prepare(`
-    DELETE FROM messages WHERE is_sent = 1 AND id NOT IN (
-      SELECT id FROM messages ORDER BY created_at DESC LIMIT 7
-    )
-  `).run();
+  db.run(`DELETE FROM messages WHERE is_sent = 1`);
+  saveDb();
 }
 
-// 群組ID
 function saveGroupId(groupId) {
-  db.prepare(`INSERT OR REPLACE INTO settings (key, value) VALUES ('group_id', ?)`).run(groupId);
+  db.run(`INSERT OR REPLACE INTO settings (key, value) VALUES ('group_id', ?)`, [groupId]);
+  saveDb();
 }
 
 function getGroupId() {
-  const row = db.prepare(`SELECT value FROM settings WHERE key = 'group_id'`).get();
+  const stmt = db.prepare(`SELECT value FROM settings WHERE key = 'group_id'`);
+  const row = stmt.getAsObject();
+  stmt.free();
   return row && row.value ? row.value : null;
 }
 
 module.exports = {
-  init,
-  saveMessage,
-  getPendingMessage,
-  markMessageSent,
-  cleanOldMessages,
-  saveGroupId,
-  getGroupId,
+  init, saveMessage, getPendingMessage,
+  markMessageSent, cleanOldMessages,
+  saveGroupId, getGroupId,
 };
