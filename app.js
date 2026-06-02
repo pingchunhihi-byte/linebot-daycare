@@ -1,5 +1,5 @@
+const { middleware, Client } = require('@line/bot-sdk');
 const express = require('express');
-const line = require('@line/bot-sdk');
 const cron = require('node-cron');
 const path = require('path');
 const db = require('./db/database');
@@ -10,19 +10,17 @@ const config = {
   channelSecret: process.env.LINE_CHANNEL_SECRET,
 };
 
-// 管理頁面密碼（可在 Railway 環境變數設定）
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'daycare2024';
 
-const client = new line.Client(config);
+const client = new Client(config);
 const app = express();
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// ========== LINE Webhook（只接收，不做紀錄指令）==========
-app.post('/webhook', line.middleware(config), (req, res) => {
-  // 自動記錄群組ID
+// ========== LINE Webhook ==========
+app.post('/webhook', middleware(config), (req, res) => {
   req.body.events.forEach(event => {
     if (event.source && event.source.type === 'group') {
       const savedGroupId = db.getGroupId();
@@ -37,7 +35,6 @@ app.post('/webhook', line.middleware(config), (req, res) => {
 
 // ========== Admin API ==========
 
-// 驗證密碼
 app.post('/api/login', (req, res) => {
   const { password } = req.body;
   if (password === ADMIN_PASSWORD) {
@@ -47,7 +44,6 @@ app.post('/api/login', (req, res) => {
   }
 });
 
-// 儲存今日交班內容（主管貼入）
 app.post('/api/save', (req, res) => {
   const { password, content, scheduledTime } = req.body;
   if (password !== ADMIN_PASSWORD) {
@@ -60,7 +56,6 @@ app.post('/api/save', (req, res) => {
   res.json({ success: true, message: '已儲存，將於排程時間推播' });
 });
 
-// 立即推播
 app.post('/api/push-now', async (req, res) => {
   const { password } = req.body;
   if (password !== ADMIN_PASSWORD) {
@@ -84,7 +79,6 @@ app.post('/api/push-now', async (req, res) => {
   }
 });
 
-// 取得目前待推播內容
 app.get('/api/status', (req, res) => {
   const password = req.query.password;
   if (password !== ADMIN_PASSWORD) {
@@ -103,26 +97,29 @@ app.get('/api/status', (req, res) => {
   });
 });
 
-// 健康檢查
 app.get('/', (req, res) => res.send('交班小幫手運行中 ✅'));
 
-// ========== 排程：每日 07:00 自動推播 ==========
+// ========== 排程 ==========
+
 cron.schedule('0 7 * * *', async () => {
   console.log('⏰ 07:00 自動推播');
-  await pushScheduled(client, db, '🌅 早安！以下是今日交班內容：\n');
+  await pushScheduled(client, db);
 }, { timezone: 'Asia/Taipei' });
 
-// ========== 排程：每日 18:30 提醒主管確認 ==========
 cron.schedule('30 18 * * *', async () => {
   console.log('⏰ 18:30 提醒推播');
   const groupId = db.getGroupId();
   const msg = db.getPendingMessage();
   if (!groupId) return;
 
+  const today = new Date().toLocaleDateString('zh-TW', {
+    timeZone: 'Asia/Taipei', month: 'numeric', day: 'numeric'
+  });
+
   let text = '';
   if (msg) {
     text =
-      `📋 今日交班預覽\n` +
+      `📋 ${today} 交班預覽\n` +
       `─────────────────\n` +
       `${msg.content}\n` +
       `─────────────────\n` +
@@ -144,7 +141,7 @@ cron.schedule('30 18 * * *', async () => {
 }, { timezone: 'Asia/Taipei' });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`🚀 交班小幫手啟動，PORT: ${PORT}`);
-  db.init();
+  await db.init();
 });
